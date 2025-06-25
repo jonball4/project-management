@@ -1,0 +1,100 @@
+{
+  "results": [
+    {
+      "engineers": 1,
+      "duration_days": 17,
+      "calendar_days": 24,
+      "total_effort": 17,
+      "avg_utilization": 100.0,
+      "max_utilization": 100.0,
+      "efficiency": 1.0
+    },
+    {
+      "engineers": 2,
+      "duration_days": 15,
+      "calendar_days": 22,
+      "total_effort": 17,
+      "avg_utilization": 56.666666666666664,
+      "max_utilization": 100.0,
+      "efficiency": 0.5666666666666667
+    },
+    {
+      "engineers": 3,
+      "duration_days": 15,
+      "calendar_days": 22,
+      "total_effort": 17,
+      "avg_utilization": 37.77777777777778,
+      "max_utilization": 100.0,
+      "efficiency": 0.37777777777777777
+    },
+    {
+      "engineers": 4,
+      "duration_days": 15,
+      "calendar_days": 22,
+      "total_effort": 17,
+      "avg_utilization": 28.333333333333332,
+      "max_utilization": 100.0,
+      "efficiency": 0.2833333333333333
+    },
+    {
+      "engineers": 5,
+      "duration_days": 15,
+      "calendar_days": 22,
+      "total_effort": 17,
+      "avg_utilization": 22.666666666666664,
+      "max_utilization": 100.0,
+      "efficiency": 0.22666666666666666
+    },
+    {
+      "engineers": 6,
+      "duration_days": 15,
+      "calendar_days": 22,
+      "total_effort": 17,
+      "avg_utilization": 18.88888888888889,
+      "max_utilization": 100.0,
+      "efficiency": 0.18888888888888888
+    }
+  ],
+  "analysis": {
+    "optimal_engineers": 2,
+    "time_savings": [
+      {
+        "from_engineers": 1,
+        "to_engineers": 2,
+        "time_saved": 2,
+        "percent_improvement": 11.76470588235294
+      },
+      {
+        "from_engineers": 2,
+        "to_engineers": 3,
+        "time_saved": 0,
+        "percent_improvement": 0.0
+      },
+      {
+        "from_engineers": 3,
+        "to_engineers": 4,
+        "time_saved": 0,
+        "percent_improvement": 0.0
+      },
+      {
+        "from_engineers": 4,
+        "to_engineers": 5,
+        "time_saved": 0,
+        "percent_improvement": 0.0
+      },
+      {
+        "from_engineers": 5,
+        "to_engineers": 6,
+        "time_saved": 0,
+        "percent_improvement": 0.0
+      }
+    ],
+    "critical_path_duration": 15
+  },
+  "metadata": {
+    "total_tasks": 7,
+    "schedulable_tasks": 7,
+    "tbd_tasks": 0,
+    "critical_path_duration": 15
+  }
+}
