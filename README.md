@@ -1,6 +1,8 @@
-# JIRA Project Management Toolkit
+# Project Timeline Estimation Toolkit
 
-A comprehensive toolkit for JIRA project management that bridges CSV planning with JIRA execution, featuring advanced scheduling algorithms and resource optimization analysis.
+A focused toolkit for accurate project timeline estimation using live Jira data
+and CSV-based planning, featuring NetworkX-powered critical path analysis and
+team optimization.
 
 ## 🚀 Quick Start
 
@@ -12,7 +14,12 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Run complete workflow
+# Set Jira credentials (for epic timeline estimator)
+export JIRA_BASE_URL="https://your-company.atlassian.net"
+export JIRA_EMAIL="your-email@company.com"
+export JIRA_TOKEN="your-jira-api-token"
+
+# Run demo
 chmod +x example.sh
 ./example.sh
 ```
@@ -23,520 +30,853 @@ chmod +x example.sh
 - [Installation](#installation)
 - [Basic Usage](#basic-usage)
 - [Advanced Usage](#advanced-usage)
+- [Development](#development)
 - [Mathematical Foundations](#mathematical-foundations)
 - [Tools Reference](#tools-reference)
-- [CSV Format](#csv-format)
+- [Data Sources](#data-sources)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 
 ## 🎯 Overview
 
-This toolkit provides four integrated tools for comprehensive JIRA project management:
+This toolkit provides two focused tools for accurate project timeline
+estimation:
 
-1. **JIRA Task Creator** - Creates JIRA tasks from CSV files under existing epics
-2. **JIRA CSV Updater** - Syncs JIRA ticket data back to CSV
-3. **Effort Estimator** - Generates realistic project timelines with business day scheduling
-4. **Engineer Optimization** - Analyzes optimal team size using diminishing returns analysis
+### 1. **Epic Timeline Estimator** (`epic_timeline_estimator.py`)
 
-### Key Features
+Analyzes live Jira epics with production-grade critical path analysis
 
-- ✅ **Business Days Scheduling** - Realistic timelines excluding weekends
-- ✅ **Dependency Management** - Automatic task ordering and critical path analysis
-- ✅ **Resource Optimization** - Data-driven team size recommendations
-- ✅ **Google Sheets Integration** - Clean CSV export with clickable links
-- ✅ **Visual Timeline Generation** - Professional Gantt charts with milestones
+**Use for:** Active Jira epics, progress tracking, accurate timeline estimates
+
+**Features:**
+
+- ✅ **Live Jira Integration** - Real-time data from Jira API with automatic
+  status tracking
+- ✅ **Critical Path Analysis** - NetworkX DAG algorithms (`dag_longest_path`)
+  for accurate scheduling
+- ✅ **Dual Estimation Methods** - Sprint-based and work-days based estimates
+  with parallelization constraints
+- ✅ **Dependency Management** - Automatic dependency parsing with cycle
+  detection and recovery
+- ✅ **Buffer Management** - Configurable overhead buffer (default 20%) for
+  realistic planning
+- ✅ **Visual DAG Export** - Dependency graph visualization with status color
+  coding
+
+### 2. **Engineer Optimization** (`engineer_optimization.py`)
+
+Analyzes optimal team size using diminishing returns analysis
+
+**Use for:** Finding the right team size for Jira epics, avoiding over-staffing
+
+**Features:**
+
+- ✅ **Live Jira Integration** - Analyzes actual epic data for team size
+  optimization
+- ✅ **Team Size Analysis** - Find optimal team size before diminishing returns
+  kick in
+- ✅ **Efficiency Metrics** - Utilization rates and workload distribution
+  analysis
+- ✅ **Visual Charts** - Duration vs. team size with efficiency curves
+- ✅ **Critical Path Aware** - Shows theoretical minimum duration limit
 
 ## 🔧 Installation
 
 ### Prerequisites
 
 - Python 3.8+
-- JIRA account with API access (optional)
-- Mermaid CLI for diagram rendering (optional)
+- Jira account with API access
+- GraphViz (optional, for dependency graph visualization)
 
-### Setup
+### Quick Install
 
 ```bash
+# Clone repository
+git clone <repository-url>
+cd project-management
+
 # Create virtual environment
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install dependencies
-pip install -r requirements.txt
+# Install package
+pip install -e .
 
-# Optional: Install Mermaid CLI for diagram rendering
-npm install -g @mermaid-js/mermaid-cli
+# Optional: Install with visualization support
+pip install -e ".[viz]"
 ```
 
-### JIRA Configuration
+### Development Install
 
 ```bash
-# Set environment variables
+# Install with development dependencies
+pip install -e ".[dev]"
+
+# Setup pre-commit hooks
+pre-commit install
+
+# Or use Make for complete setup
+make setup
+```
+
+### Optional: GraphViz for Visualization
+
+```bash
+# macOS
+brew install graphviz
+
+# Ubuntu/Debian
+sudo apt install graphviz
+
+# Then install Python bindings
+pip install -e ".[viz]"
+```
+
+### Jira Configuration (for epic_timeline_estimator.py)
+
+```bash
+# Set environment variables for Jira v3 API
+export JIRA_BASE_URL="https://your-company.atlassian.net"
 export JIRA_EMAIL="your-email@company.com"
 export JIRA_TOKEN="your-jira-api-token"
-export JIRA_URL="https://your-company.atlassian.net"
 ```
+
+**Get your Jira API token:**
+
+1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
+1. Click "Create API token"
+1. Copy the token and set it as `JIRA_TOKEN`
 
 ## 📚 Basic Usage
 
-### 1. Simple Timeline Generation
+### 1. Epic Timeline Estimation
 
-Generate a basic project timeline from your CSV:
+Analyze a Jira epic with critical path analysis:
 
 ```bash
-python3 effort_estimator.py \
-    --csv "your-tasks.csv" \
-    --engineers 4 \
-    --output "project-timeline"
+python3 epic_timeline_estimator.py PX-8350 \
+    --developers 3.25 \
+    --points-per-sprint 8 \
+    --sprint-weeks 2 \
+    --buffer 20
 ```
 
 **Output:**
-- `project-timeline.png` - Visual Gantt chart
-- `project-timeline.mmd` - Mermaid source file
-- Console report with project statistics
 
-### 2. Find Optimal Team Size
+- Console report with dual estimation methods (sprint-based and work-days)
+- Critical path analysis with issue breakdown
+- Completion metrics and team utilization
+- Optional: `--export-dag` for dependency graph visualization
+- Optional: `--json` for machine-readable output
 
-Analyze the best number of engineers for your project:
+### 2. Export Dependency Graph
+
+Visualize epic dependencies with status color coding:
 
 ```bash
-python3 engineer_optimization.py \
-    --csv "your-tasks.csv" \
+python3 epic_timeline_estimator.py PX-8350 \
+    --developers 3.25 \
+    --points-per-sprint 8 \
+    --export-dag
+```
+
+**Output:**
+
+- `epic_dag.dot` - GraphViz DOT file
+- `epic_dag.png` - Rendered dependency graph (requires graphviz)
+- Green nodes: completed issues
+- Blue nodes: remaining work
+
+### 3. Find Optimal Team Size
+
+Analyze the best number of engineers for a Jira epic:
+
+```bash
+python3 engineer_optimization.py PX-8350 \
     --max-engineers 10 \
     --output "team-optimization"
 ```
 
 **Output:**
-- `team-optimization.png` - Scaling analysis charts
-- `team-optimization.json` - Detailed optimization data
-- Console report with recommendations
 
-### 3. Create JIRA Tasks
+- `output/team-optimization.png` - Scaling analysis charts
+- `output/team-optimization.json` - Detailed optimization data
+- Console report with optimal team size recommendation
 
-Create JIRA tasks from your CSV under an existing epic:
-
-```bash
-python3 jira_epic_maker.py \
-    --csv "your-tasks.csv" \
-    --epic "PROJ-123"
-```
-
-### 4. Sync Back to CSV
-
-Update your CSV with actual JIRA ticket numbers:
+**Optional: Export dependency graph**
 
 ```bash
-python3 jira_csv_updater.py \
-    --csv "your-tasks.csv" \
-    --epic "PROJ-123" \
-    --output "tasks-with-tickets.csv"
+python3 engineer_optimization.py PX-8350 \
+    --max-engineers 10 \
+    --export-dag
 ```
+
+## 👨‍💻 Development
+
+This project follows modern Python best practices with automated code quality
+tools.
+
+### Development Setup
+
+```bash
+# Quick setup with Make
+make setup
+
+# Or manual setup
+pip install -e ".[dev]"
+pre-commit install
+```
+
+### Code Quality Tools
+
+| Tool           | Purpose              | Command            |
+| -------------- | -------------------- | ------------------ |
+| **Black**      | Code formatting      | `make format`      |
+| **Ruff**       | Fast Python linter   | `make lint`        |
+| **MyPy**       | Static type checking | `make type-check`  |
+| **Pytest**     | Testing framework    | `make test`        |
+| **Pre-commit** | Git hooks            | `make pre-commit`  |
+| **Bandit**     | Security scanning    | Runs in pre-commit |
+
+### Running Tests
+
+```bash
+# Run all tests
+make test
+
+# Run with coverage report
+make test-cov
+
+# Run specific test file
+pytest tests/test_issue_parser.py
+
+# Run specific test
+pytest tests/test_issue_parser.py::test_issue_creation -v
+```
+
+### Code Formatting
+
+```bash
+# Format all code (black + ruff)
+make format
+
+# Check formatting without changes
+black --check .
+ruff check .
+```
+
+### Type Checking
+
+```bash
+# Run mypy on all files
+make type-check
+
+# Run on specific file
+mypy issue_parser.py
+```
+
+### Pre-commit Hooks
+
+Pre-commit hooks run automatically before each commit:
+
+- ✅ Trailing whitespace removal
+- ✅ End-of-file fixing
+- ✅ YAML/JSON/TOML validation
+- ✅ Black formatting
+- ✅ Ruff linting
+- ✅ MyPy type checking
+- ✅ Bandit security scanning
+- ✅ Markdown formatting
+
+```bash
+# Run manually on all files
+make pre-commit
+
+# Skip hooks (not recommended)
+git commit --no-verify
+```
+
+### Project Structure
+
+```
+project-management/
+├── pyproject.toml              # Modern Python packaging
+├── .pre-commit-config.yaml     # Pre-commit hooks config
+├── Makefile                    # Development commands
+├── .editorconfig               # Editor configuration
+├── .github/                    # GitHub Actions CI/CD
+│   ├── workflows/
+│   │   ├── ci.yml             # Test & lint pipeline
+│   │   └── release.yml        # Release automation
+│   ├── ISSUE_TEMPLATE/        # Issue templates
+│   └── PULL_REQUEST_TEMPLATE.md
+├── tests/                      # Test suite
+│   ├── test_issue_parser.py
+│   ├── test_scheduler.py
+│   └── conftest.py            # Shared fixtures
+├── jira_client.py             # Common: Jira API
+├── issue_parser.py            # Common: Parsing & graphs
+├── scheduler.py               # Common: Task scheduling
+├── dag_exporter.py            # Common: Visualization
+├── epic_timeline_estimator.py # Tool 1: Timeline estimation
+├── engineer_optimization.py   # Tool 2: Team optimization
+├── CONTRIBUTING.md            # Contribution guidelines
+├── ARCHITECTURE.md            # Technical documentation
+└── LICENSE                    # MIT License
+```
+
+### Continuous Integration
+
+GitHub Actions automatically:
+
+- ✅ Run tests on Python 3.8-3.12
+- ✅ Check code formatting
+- ✅ Run linters and type checkers
+- ✅ Generate coverage reports
+- ✅ Run security scans
+
+See `.github/workflows/ci.yml` for details.
 
 ## 🎓 Advanced Usage
 
-### Multi-Stage Project Analysis
+### Complete Project Lifecycle
 
 ```bash
-# Stage 1: Initial planning
-python3 effort_estimator.py --csv tasks.csv --engineers 3 --output stage1
-python3 effort_estimator.py --csv tasks.csv --engineers 5 --output stage2
-python3 effort_estimator.py --csv tasks.csv --engineers 8 --output stage3
+# Phase 1: Find Optimal Team Size
+python3 engineer_optimization.py PA-100 \
+    --max-engineers 12 \
+    --output team-analysis \
+    --export-dag
 
-# Stage 2: Optimization analysis
-python3 engineer_optimization.py --csv tasks.csv --max-engineers 12 --output optimization
+# Review output/team-analysis.png to determine optimal team size
+# Example output: "Optimal team size: 6 engineers"
 
-# Stage 3: JIRA integration
-python3 jira_epic_maker.py --csv tasks.csv --epic "PA-100"
-python3 jira_csv_updater.py --csv tasks.csv --epic "PA-100" --output final-tasks.csv
+# Phase 2: Get Detailed Timeline Estimate
+python3 epic_timeline_estimator.py PA-100 \
+    --developers 6 \
+    --points-per-sprint 8 \
+    --sprint-weeks 2 \
+    --export-dag
 
-# Stage 4: Final timeline with JIRA data
-python3 effort_estimator.py --csv final-tasks.csv --engineers 6 --output final-timeline
+# Phase 3: Track Progress Over Time
+# Run weekly to see updated estimates as work progresses
+python3 epic_timeline_estimator.py PA-100 \
+    --developers 6 \
+    --json > weekly-report-$(date +%Y%m%d).json
+
+# Phase 4: Adjust Team Size if Needed
+# If timeline is too long, check if adding engineers helps
+python3 engineer_optimization.py PA-100 --max-engineers 10
+python3 epic_timeline_estimator.py PA-100 --developers 8  # Test new size
 ```
 
-### Custom Story Point Mapping
+### Comparing Estimation Methods
 
-The system uses a standard Fibonacci-based mapping:
+The epic timeline estimator provides two complementary approaches:
 
-```python
-# Default mapping in effort_estimator.py
-STORY_POINTS_TO_DAYS = {
-    1: 1,    # <= 1 Day of work
-    2: 2,    # 2 days of work
-    3: 3,    # 3 days of work
-    5: 5,    # 5 days of work
-    8: 8,    # Consider splitting the task
-    13: 13   # Epic-level task (definitely split)
-}
+```bash
+# Run estimation with default settings
+python3 epic_timeline_estimator.py PX-8350 --developers 3.25
+
+# Output shows both methods:
+# 1. Sprint-Based: Uses team velocity (points per sprint)
+#    - Accounts for sprint ceremonies and overhead
+#    - Best for established teams with known velocity
+#
+# 2. Work-Days Based: Assumes 1 point = 1 day
+#    - More granular daily tracking
+#    - Useful for new teams or variable capacity
+#
+# The tool takes max(parallel, sequential) for both methods
+# to account for parallelization constraints
 ```
 
-### Advanced CSV Features
+### Understanding Critical Path
 
-Your CSV can include complex dependencies:
+```bash
+# Critical path shows the longest dependency chain
+python3 epic_timeline_estimator.py PX-8350 --developers 3.25 --export-dag
 
-```csv
-Task,Description,Dependencies,Points
-Setup Database,Create initial schema,,2
-Create API,Build REST endpoints,Setup Database,5
-Frontend UI,Build user interface,Create API,8
-Integration Tests,End-to-end testing,"Create API,Frontend UI",3
+# Key insights:
+# - Critical path length = minimum possible duration
+# - Cannot be parallelized (sequential constraint)
+# - Focus optimization efforts on critical path tasks
+# - Adding engineers won't help if critical path is the bottleneck
 ```
 
 ## 🧮 Mathematical Foundations
 
-### Business Days Calculation
+### Critical Path Analysis (NetworkX DAG Algorithms)
 
-The system converts calendar days to business days using:
+The epic timeline estimator uses NetworkX's `dag_longest_path` algorithm:
 
-```
-Business Days = ⌊(Calendar Days × 5) / 7⌋ + Adjustment
-```
-
-Where the adjustment accounts for partial weeks and ensures weekends are excluded.
-
-**Implementation:**
 ```python
-def add_business_days(start_date: datetime, business_days: int) -> datetime:
-    current_date = start_date
-    days_added = 0
-    
-    while days_added < business_days:
-        current_date += timedelta(days=1)
-        if current_date.weekday() < 5:  # Monday = 0, Sunday = 6
-            days_added += 1
-    
-    return current_date
-```
+# Build directed acyclic graph with story points as edge weights
+G = nx.DiGraph()
+for issue in issues:
+    G.add_node(issue.key, story_points=issue.story_points)
+    for blocked_issue in issue.blocks:
+        G.add_edge(issue.key, blocked_issue, weight=issue.story_points)
 
-### Critical Path Analysis
-
-The critical path is calculated using the **Longest Path Algorithm** on a Directed Acyclic Graph (DAG):
-
-```
-Critical Path Length = max(path_length(start_node, end_node))
-                      for all start_nodes, end_nodes
+# Calculate critical path (longest path through DAG)
+critical_path = nx.dag_longest_path(G, weight="weight")
+critical_path_length = nx.dag_longest_path_length(G, weight="weight")
 ```
 
 **Mathematical Properties:**
+
 - **Lower Bound**: No project can complete faster than the critical path
-- **Dependency Constraint**: `start_time(task) ≥ max(end_time(dependency)) for all dependencies`
-- **Resource Independence**: Critical path assumes unlimited resources
+- **Dependency Constraint**:
+  `start_time(task) ≥ max(end_time(dependency)) for all dependencies`
+- **Parallelization Limit**: Critical path work cannot be parallelized
+- **Time Complexity**: O(V + E) using dynamic programming on DAG
 
-### Resource Optimization Model
+### Dual Estimation Model
 
-The optimization analysis uses **Diminishing Returns Theory**:
+The system provides two complementary estimates and takes the maximum:
 
-```
-Efficiency(n) = Total_Work / (n × Project_Duration(n))
-
-Marginal_Benefit(n) = Duration(n-1) - Duration(n)
-Marginal_Cost(n) = Cost_per_Engineer
-
-Optimal_n = argmax(Marginal_Benefit(n) / Marginal_Cost(n))
-```
-
-**Key Equations:**
-
-1. **Team Efficiency**: `E(n) = W / (n × D(n))`
-   - W = Total work (story points)
-   - n = Number of engineers  
-   - D(n) = Project duration with n engineers
-
-2. **Utilization Rate**: `U(n) = Σ(engineer_workload) / (n × max_workload)`
-
-3. **Diminishing Returns Threshold**: When `(D(n-1) - D(n)) / D(n-1) < 0.05` (5% improvement)
-
-### Scheduling Algorithm
-
-The system uses a **Priority-Based List Scheduling** algorithm:
+**1. Sprint-Based Estimation:**
 
 ```
-1. Topological Sort: Order tasks by dependencies
-2. For each task in topological order:
-   a. Calculate earliest start time based on dependencies
-   b. Find engineer with earliest availability ≥ earliest start time
-   c. Assign task to that engineer
-   d. Update engineer's availability
+min_sprints_parallel = total_points / team_capacity_per_sprint
+min_sprints_sequential = critical_path_points / team_capacity_per_sprint
+estimated_sprints = max(min_sprints_parallel, min_sprints_sequential)
+estimated_sprints_with_buffer = estimated_sprints × (1 + buffer_percent/100)
 ```
 
-**Time Complexity**: O(V + E + V log V) where V = tasks, E = dependencies
+**2. Work-Days Estimation:**
 
-**Space Complexity**: O(V + E) for the dependency graph
+```
+work_days_parallel = total_points / num_developers
+work_days_sequential = critical_path_points  # Cannot parallelize
+work_days_estimate = max(work_days_parallel, work_days_sequential)
+work_days_with_buffer = work_days_estimate × (1 + buffer_percent/100)
+```
 
-### Statistical Analysis
+**Why Take the Maximum:**
 
-The optimization tool provides several statistical measures:
+- Parallel constraint: Limited by total work ÷ team capacity
+- Sequential constraint: Limited by critical path (no parallelization possible)
+- Reality: Both constraints apply simultaneously
+- Result: More accurate than either method alone
 
-1. **Mean Utilization**: `μ = (1/n) Σ utilization_i`
-2. **Standard Deviation**: `σ = √[(1/n) Σ(utilization_i - μ)²]`
-3. **Efficiency Variance**: Measures workload distribution fairness
-4. **Confidence Intervals**: 95% confidence bounds on duration estimates
+### Buffer Management
+
+Configurable buffer accounts for overhead and uncertainty:
+
+```
+buffer_percent = 20.0  # Default 20% buffer
+
+# Applied to both estimation methods
+estimated_sprints_with_buffer = estimated_sprints_raw × 1.20
+work_days_with_buffer = work_days_estimate × 1.20
+
+# Converts to calendar time
+estimated_weeks = estimated_sprints_with_buffer × sprint_weeks
+work_weeks = work_days_with_buffer / 5  # 5 work days per week
+```
+
+**Buffer Rationale:**
+
+- Sprint ceremonies and overhead
+- Context switching and communication
+- Unexpected blockers and dependencies
+- Integration and testing time
+- Code review and rework
+
+### Cycle Detection and Recovery
+
+The system detects circular dependencies and handles them gracefully:
+
+```python
+if not nx.is_directed_acyclic_graph(G):
+    cycles = list(nx.simple_cycles(G))
+    # Remove cycles by removing edges
+    G = nx.DiGraph(
+        [
+            (u, v, d)
+            for u, v, d in G.edges(data=True)
+            if not any((u in c and v in c) for c in cycles)
+        ]
+    )
+```
+
+**Recovery Strategy:**
+
+- Detect all cycles using NetworkX
+- Report cycles to user for awareness
+- Remove problematic edges to create valid DAG
+- Continue with estimation (degraded but functional)
 
 ## 🛠️ Tools Reference
 
-### effort_estimator.py
+### epic_timeline_estimator.py
 
-**Purpose**: Generate project timelines with business day scheduling
+**Purpose**: Analyze Jira epics with critical path analysis and dual estimation
+methods
 
 **Key Parameters:**
-- `--csv`: Input CSV file path
-- `--engineers`: Number of engineers (default: 4)
-- `--output`: Output file prefix
-- `--format`: Output format (gantt, png, both)
 
-**Algorithm**: Priority-based list scheduling with topological ordering
+- `epic_key`: Epic key (e.g., "PX-8350") - required positional argument
+- `--developers`: Number of FTE developers (default: 3.25)
+- `--points-per-sprint`: Story points per sprint per developer (default: 8)
+- `--sprint-weeks`: Sprint length in weeks (default: 2)
+- `--buffer`: Buffer percentage for overhead (default: 20)
+- `--export-dag`: Export dependency graph as DOT/PNG
+- `--json`: Output results as JSON
+
+**Algorithm**: NetworkX DAG algorithms with dual estimation methods
 
 **Outputs:**
-- Gantt chart visualization
-- Project statistics report
-- Critical path analysis
+
+- Sprint-based estimate with team velocity
+- Work-days estimate with parallelization constraints
+- Critical path analysis with issue breakdown
+- Completion metrics and progress tracking
+- Optional: Dependency graph visualization
 
 ### engineer_optimization.py
 
-**Purpose**: Analyze optimal team size using diminishing returns
+**Purpose**: Analyze optimal team size using diminishing returns analysis
 
 **Key Parameters:**
-- `--csv`: Input CSV file path
-- `--max-engineers`: Maximum team size to analyze (default: 12)
-- `--output`: Output file prefix
 
-**Algorithm**: Exhaustive search with efficiency analysis
+- `epic_key`: Jira epic key (e.g., "PX-8350") - required positional argument
+- `--max-engineers`: Maximum team size to analyze (default: 12)
+- `--output`: Output file prefix (default: "engineer-optimization")
+- `--story-points-field`: Jira custom field ID for story points (default:
+  customfield_10115)
+- `--export-dag`: Export dependency graph as DOT/PNG
+
+**Algorithm**: Exhaustive search with efficiency analysis and critical path
+calculation using NetworkX
 
 **Outputs:**
-- Dual-chart visualization (duration vs efficiency)
-- Optimization recommendations
-- JSON data export
 
-### jira_epic_maker.py
+- `output/<prefix>.png` - Dual-chart visualization (duration vs efficiency)
+- `output/<prefix>.json` - Detailed optimization data with recommendations
+- Console report with optimal team size and utilization metrics
+- Optional: `<epic>_optimization_dag.png` - Dependency graph visualization
 
-**Purpose**: Create JIRA tasks from CSV under an existing epic
+**Example:**
 
-**Key Parameters:**
-- `--csv`: Input CSV file path
-- `--epic`: Epic key (e.g., "PROJ-123")
-- `--project`: JIRA project name (default: "Prime Trade")
-- `--dry-run`: Validate without creating tickets
-- `--verbose`: Enable verbose logging
-
-**Features:**
-- Automatic field discovery
-- Dependency relationship creation
-- Duplicate handling
-
-### jira_csv_updater.py
-
-**Purpose**: Sync JIRA ticket data back to CSV
-
-**Key Parameters:**
-- `--csv`: Original CSV file path
-- `--epic`: Epic key (e.g., "PROJ-123")
-- `--output`: Updated CSV file path
-
-**Features:**
-- Google Sheets compatible links
-- Dependency ticket extraction
-- Bidirectional sync
-
-## 📊 CSV Format
-
-### Required Columns
-
-```csv
-Task,Description,Dependencies,Points
+```bash
+python3 engineer_optimization.py PX-8350 \
+    --max-engineers 10 \
+    --output team-analysis \
+    --export-dag
 ```
 
-### Column Specifications
+## 📊 Data Sources
 
-| Column | Type | Description | Example |
-|--------|------|-------------|---------|
-| `Task` | String | Unique task name | "Setup Database" |
-| `Description` | String | Detailed task description | "Create initial schema with tables" |
-| `Dependencies` | String | Comma-separated task names | "Task A,Task B" |
-| `Points` | Integer/String | Story points or "TBD" | "5" or "TBD" |
+### Live Jira Data (Both Tools)
 
-### Optional Enhancements
+Both tools pull real-time data from Jira v3 API:
 
-The CSV updater adds these columns:
+**Fetched Data:**
 
-| Column | Description |
-|--------|-------------|
-| `Ticket(s)` | JIRA ticket hyperlinks |
-| `Dependency Tickets` | Plain text ticket keys |
+- Issue keys and summaries
+- Story points (customfield_10115 - configurable via `--story-points-field`)
+- Issue status (Done, In Progress, etc.)
+- Issue links (blocks/blocked by relationships)
+- Parent hierarchy (uses `parent = EPIC-KEY` JQL)
 
-### Example CSV
+**Automatic Filtering:**
 
-```csv
-Task,Description,Dependencies,Points
-Database Setup,Create PostgreSQL schema,,2
-API Development,Build REST endpoints,Database Setup,5
-Frontend UI,React component development,API Development,8
-Integration Tests,End-to-end testing,"API Development,Frontend UI",3
-Deployment,Production deployment,Integration Tests,2
+- Excludes completed issues from estimates (Done, Closed, Duplicate, Won't Fix)
+- Tracks completion percentage
+- Handles missing story points gracefully (defaults to 0)
+
+**Pagination:**
+
+- Automatically handles large epics (500+ issues)
+- Uses `nextPageToken` for efficient pagination
+
+**Environment Variables Required:**
+
+```bash
+export JIRA_BASE_URL="https://your-company.atlassian.net"
+export JIRA_EMAIL="your-email@company.com"
+export JIRA_TOKEN="your-api-token"
 ```
+
+### Common Modules
+
+The toolkit uses shared modules for consistency:
+
+- `jira_client.py` - Jira v3 API client with pagination
+- `issue_parser.py` - Issue parsing and dependency graph building
+- `scheduler.py` - Task scheduling across engineers
+- `dag_exporter.py` - Dependency graph visualization
+
+To use the toolkit:
+
+1. Create an epic in Jira
+1. Add child issues to the epic (using parent hierarchy)
+1. Add story points to each issue
+1. Link issues with "blocks/blocked by" relationships for dependencies
+1. Run the tools with your epic key
 
 ## ⚙️ Configuration
 
 ### Environment Variables
 
+**Required for both tools:**
+
 ```bash
-# JIRA Configuration
+# Jira Configuration (v3 API)
+export JIRA_BASE_URL="https://your-company.atlassian.net"
 export JIRA_EMAIL="user@company.com"
 export JIRA_TOKEN="your-api-token"
-export JIRA_URL="https://company.atlassian.net"
-
-# Optional: Customize story point mapping
-export STORY_POINT_MULTIPLIER="1.0"  # Adjust estimation factor
 ```
 
-### Advanced Configuration
+### Custom Story Points Field
 
-Create a `config.json` file:
+Both tools support the `--story-points-field` parameter:
 
-```json
-{
-  "story_points_mapping": {
-    "1": 1,
-    "2": 2,
-    "3": 3,
-    "5": 5,
-    "8": 8
-  },
-  "business_hours": {
-    "start": "09:00",
-    "end": "17:00",
-    "timezone": "UTC"
-  },
-  "optimization": {
-    "max_engineers": 15,
-    "efficiency_threshold": 0.05,
-    "cost_per_engineer": 1000
-  }
-}
+```bash
+# Epic timeline estimator
+python3 epic_timeline_estimator.py PX-8350 \
+    --developers 3.25 \
+    --story-points-field customfield_12345
+
+# Engineer optimization
+python3 engineer_optimization.py PX-8350 \
+    --max-engineers 10 \
+    --story-points-field customfield_12345
+```
+
+To find your story points field ID:
+
+```bash
+curl -u "$JIRA_EMAIL:$JIRA_TOKEN" \
+  "$JIRA_BASE_URL/rest/api/3/field" | jq '.[] | select(.name | contains("Story Points"))'
 ```
 
 ## 🔍 Troubleshooting
 
 ### Common Issues
 
-**1. "No tasks with valid story points found"**
-```bash
-# Check your CSV format
-head -5 your-tasks.csv
+**1. "Missing required environment variables"**
 
-# Ensure Points column has numeric values or "TBD"
-# Valid: 1, 2, 3, 5, 8, TBD
-# Invalid: "2 days", "medium", ""
-```
-
-**2. "Circular dependencies detected"**
 ```bash
-# The system will report the circular dependency
-# Example: Task A → Task B → Task C → Task A
-# Fix by removing one dependency link
-```
-
-**3. "JIRA authentication failed"**
-```bash
-# Verify credentials
-echo $JIRA_EMAIL
-echo $JIRA_TOKEN
+# For both tools
+export JIRA_BASE_URL="https://your-company.atlassian.net"
+export JIRA_EMAIL="your-email@company.com"
+export JIRA_TOKEN="your-api-token"
 
 # Test connection
-curl -u "$JIRA_EMAIL:$JIRA_TOKEN" \
-  "$JIRA_URL/rest/api/3/myself"
+python3 -c "
+from jira_client import JiraClient
+jira = JiraClient()
+print('✅ Jira connection successful')
+"
 ```
 
-**4. "Mermaid diagram not rendering"**
-```bash
-# Install Mermaid CLI
-npm install -g @mermaid-js/mermaid-cli
+**2. "No issues found for epic"**
 
-# Or use online editor with .mmd files
-# https://mermaid.live/
+```bash
+# Verify epic exists and has child issues
+curl -u "$JIRA_EMAIL:$JIRA_TOKEN" \
+  "$JIRA_BASE_URL/rest/api/3/search?jql=parent=PX-8350"
+
+# Check if issues are linked via parent hierarchy (not epic link)
+# The tool uses: parent = EPIC-KEY
+```
+
+**3. "Circular dependencies detected"**
+
+```bash
+# The system will report cycles and continue with degraded accuracy
+# Example output:
+# ⚠️  Warning: Found 2 circular dependencies!
+#    Cycle: PX-101 -> PX-102 -> PX-103 -> PX-101
+
+# Fix in Jira by removing one blocking link from the cycle
+```
+
+**4. "GraphViz not installed (for --export-dag)"**
+
+```bash
+# Install graphviz library
+pip install graphviz
+
+# Install GraphViz system package
+brew install graphviz  # macOS
+# or
+sudo apt install graphviz  # Ubuntu/Debian
+```
+
+**5. "Story points not showing (all 0 points)"**
+
+```bash
+# Find your custom field ID
+curl -u "$JIRA_EMAIL:$JIRA_TOKEN" \
+  "$JIRA_BASE_URL/rest/api/3/field" | jq '.[] | select(.name | contains("Story"))'
+
+# Update line 111 in epic_timeline_estimator.py with your field ID
 ```
 
 ### Performance Optimization
 
-For large projects (>100 tasks):
+For large epics (>100 issues):
 
 ```bash
 # Use JSON output for faster processing
-python3 engineer_optimization.py --csv large-project.csv --output analysis
-# Process analysis.json programmatically
+python3 epic_timeline_estimator.py PX-8350 --developers 6 --json > analysis.json
 
-# Limit engineer analysis range
-python3 engineer_optimization.py --max-engineers 8  # Instead of default 12
+# Process programmatically
+python3 -c "
+import json
+with open('analysis.json') as f:
+    data = json.load(f)
+    print(f'Duration: {data[\"estimated_weeks\"]:.1f} weeks')
+    print(f'Critical path: {data[\"critical_path_points\"]} points')
+"
 
-# Use verbose mode for progress tracking
-python3 effort_estimator.py --csv large-project.csv --verbose
+# Pagination is automatic (handles 500+ issues)
+# The JiraClient uses nextPageToken for large result sets
 ```
 
-### Debug Mode
+### Comparing Team Sizes
 
-Enable detailed logging:
+Quickly compare different team configurations:
 
 ```bash
-# Set debug environment
-export DEBUG=1
-
-# Run with maximum verbosity
-python3 effort_estimator.py --csv tasks.csv --verbose --engineers 4
+# Create comparison script
+for devs in 2 3 4 5 6; do
+  echo "=== $devs Developers ==="
+  python3 epic_timeline_estimator.py PX-8350 --developers $devs \
+    | grep "Target Completion"
+done
 ```
 
 ## 📈 Best Practices
 
-### 1. Story Point Guidelines
+### 1. When to Use Each Tool
 
-- **1 point**: <= 1 Day of work
+**Use epic_timeline_estimator.py when:**
+
+- Epic exists in Jira with child issues
+- Need accurate estimates based on real data
+- Want to track progress over time
+- Critical path analysis is important
+- Team has established velocity
+
+**Use engineer_optimization.py when:**
+
+- Planning new projects (not yet in Jira)
+- Exploring different team size scenarios
+- Need visual Gantt charts
+- Doing theoretical "what-if" analysis
+
+### 2. Story Point Guidelines
+
+- **1 point**: \<= 1 Day of work
 - **2 points**: 2 days of work
 - **3 points**: 3 days of work
 - **5 points**: 5 days of work
 - **8+ points**: Consider splitting the task
+- **Missing points**: Tool handles gracefully (excluded from estimates)
 
-### 2. Dependency Management
+### 3. Dependency Management in Jira
 
-- Keep dependencies simple and direct
-- Avoid deep dependency chains (>5 levels)
-- Use task splitting for complex dependencies
-- Validate dependency logic before JIRA creation
+- Use "blocks/blocked by" link types (automatically parsed)
+- Keep dependency chains reasonable (\<10 levels)
+- The tool detects and reports circular dependencies
+- Review dependency graph with `--export-dag`
 
-### 3. Team Size Optimization
+### 4. Buffer Configuration
 
-- Start with the optimization tool recommendation
-- Consider team communication overhead (Brooks' Law)
-- Factor in onboarding time for new team members
-- Account for domain expertise requirements
+- Default 20% buffer accounts for typical overhead
+- Increase buffer (30-40%) for:
+  - New teams or unfamiliar technology
+  - High uncertainty or changing requirements
+  - Integration-heavy projects
+- Decrease buffer (10-15%) for:
+  - Mature teams with stable velocity
+  - Well-understood problem domains
+  - Minimal external dependencies
 
-### 4. Timeline Accuracy
+### 5. Interpreting Results
 
-- Use business days for realistic planning
-- Add buffer time for integration and testing
-- Consider holidays and team availability
-- Update estimates based on actual progress
+**When estimates differ significantly:**
+
+- Sprint-based > Work-days: Team velocity is lower than 1 point/day
+- Work-days > Sprint-based: Critical path is the bottleneck
+- Both similar: Good balance of parallelizable work
+
+**Critical path insights:**
+
+- High critical path ratio (>60% of total): Limited parallelization benefit
+- Low critical path ratio (\<30%): Adding engineers helps significantly
+- Focus optimization on critical path tasks first
+
+## 🎯 Use Case Decision Tree
+
+```
+Have a Jira epic with issues?
+│
+├─ Need to find optimal team size?
+│  └─ YES → Use engineer_optimization.py EPIC-KEY
+│            • Analyzes 1-12 engineers (configurable)
+│            • Shows diminishing returns
+│            • Recommends optimal team size
+│            • Outputs: chart + JSON + report
+│
+└─ Need detailed timeline estimate?
+   └─ YES → Use epic_timeline_estimator.py EPIC-KEY
+             • Dual estimation methods
+             • Sprint-based + work-days
+             • Buffer management
+             • Progress tracking
+             • Outputs: report + JSON + optional DAG
+
+💡 Pro Tip: Run engineer_optimization.py first to find optimal
+   team size, then use that number with epic_timeline_estimator.py
+   for detailed timeline estimates.
+```
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Update documentation
-5. Submit a pull request
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed
+guidelines.
 
-### Development Setup
+### Quick Start for Contributors
 
 ```bash
-# Install development dependencies
-pip install -r requirements.txt
-# Uncomment dev dependencies in requirements.txt
+# Setup development environment
+make setup
 
 # Run tests
-python -m pytest tests/
+make test
 
 # Format code
-black *.py
+make format
 
-# Type checking
-mypy *.py
+# Run linter
+make lint
+
+# Type check
+make type-check
+
+# Run all pre-commit hooks
+make pre-commit
 ```
+
+### Development Commands
+
+| Command           | Description                   |
+| ----------------- | ----------------------------- |
+| `make setup`      | Complete development setup    |
+| `make test`       | Run test suite                |
+| `make test-cov`   | Run tests with coverage       |
+| `make format`     | Format code with black & ruff |
+| `make lint`       | Run ruff linter               |
+| `make type-check` | Run mypy type checker         |
+| `make clean`      | Remove build artifacts        |
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
 
 ## 📄 License
 
@@ -545,9 +885,9 @@ MIT License - see LICENSE file for details.
 ## 🆘 Support
 
 - **Issues**: GitHub Issues
-- **Documentation**: This README
-- **Examples**: See `example.sh` and sample CSV files
+- **Documentation**: This README and ARCHITECTURE.md
+- **Examples**: See `example.sh` for complete workflow demonstration
 
----
+______________________________________________________________________
 
-**Made with ❤️ for better project management**
+**Made with ❤️ for accurate project estimation**

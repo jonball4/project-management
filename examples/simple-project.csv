@@ -1,8 +1,0 @@
-Task,Description,Dependencies,Points
-Setup Environment,Setup development environment and tools,,1
-Design Database,Create database schema design,,2
-Build API,Develop REST API endpoints,Setup Environment,3
-Create Frontend,Build user interface,Build API,5
-Add Authentication,Implement user login system,Create Frontend,3
-Testing,Write and run tests,Add Authentication,2
-Deployment,Deploy to production,Testing,1

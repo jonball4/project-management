@@ -23,6 +23,24 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# Ruff
+.ruff_cache/
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pytest
+.pytest_cache/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+
 # Virtual Environment
 venv/
 env/
@@ -63,26 +81,18 @@ output/
 *-timeline.mmd
 *-optimization.png
 *-optimization.json
-tasks-with-*.csv
-
-# But keep example outputs
-!examples/*.png
-!examples/*.mmd
-!examples/*.json
+*.dot
+epic-*.json
+*_dag.png
+*_dag.dot
 
 # Temporary files
 *.tmp
 *.temp
 .cache/
 
-# Coverage reports
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
-*.cover
+# Hypothesis
 .hypothesis/
-.pytest_cache/
 
 # Jupyter Notebook
 .ipynb_checkpoints
