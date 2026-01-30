@@ -29,9 +29,7 @@ from jira_client import JiraClient
 class EpicAnalyzer:
     """Analyzes epic dependencies and estimates timeline"""
 
-    def __init__(
-        self, jira_client: JiraClient, story_points_field: str = "customfield_10115"
-    ):
+    def __init__(self, jira_client: JiraClient, story_points_field: str = "customfield_10115"):
         self.jira = jira_client
         self.story_points_field = story_points_field
         self.issues: Dict = {}

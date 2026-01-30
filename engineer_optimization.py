@@ -77,9 +77,11 @@ def analyze_engineer_scaling(
             "total_effort": simulation["total_effort"],
             "avg_utilization": simulation["avg_utilization"],
             "max_utilization": simulation["max_utilization"],
-            "efficiency": simulation["total_effort"] / (num_engineers * simulation["duration"])
-            if simulation["duration"] > 0
-            else 0,
+            "efficiency": (
+                simulation["total_effort"] / (num_engineers * simulation["duration"])
+                if simulation["duration"] > 0
+                else 0
+            ),
         }
 
         results.append(result)

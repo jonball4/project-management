@@ -3,7 +3,6 @@
 from typing import Dict, List
 
 import networkx as nx
-import pytest
 
 from issue_parser import Issue, build_dependency_graph, handle_cycles, parse_jira_issues
 
