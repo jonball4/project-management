@@ -21,10 +21,13 @@ Usage:
 
 import argparse
 import json
+import math
 import random
 import sys
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Any, Dict, List, Optional, Set, Union
+
+import networkx as nx
 
 from issue_parser import (
     build_dependency_graph,
@@ -119,86 +122,215 @@ class EpicAnalyzer:
         if developers <= 1:
             return 1.0
 
-        import math
-
         log_factor = math.log2(developers)
         efficiency = 1 / (1 + coordination_factor * log_factor)
         return efficiency
 
-    def _simulate_workdays_for_run(
-        self,
-        critical_path_points: float,
-        total_points: float,
-        developers: float,
-        coordination_factor: float,
-        variance: float = 0.10,
-    ) -> float:
+    def _get_available_issues(
+        self, issue_state: Dict[str, Dict], started_issues: Set[str]
+    ) -> List[str]:
         """
-        Simulate a single Monte Carlo run for workday estimation.
-
-        For each iteration:
-        1. Add stochastic variability to developer capacity (±variance%)
-        2. Calculate work days considering both critical path and parallelization
-        3. Apply team efficiency degradation
+        Get list of issues that can be started (all dependencies complete, not yet started).
 
         Args:
-            critical_path_points: Sum of story points on critical path
-            total_points: Total remaining story points
-            developers: Number of developers
-            coordination_factor: Brooks's Law overhead factor
-            variance: Standard deviation of developer capacity variance (default: 0.10 = ±10%)
+            issue_state: Dictionary mapping issue_key to state info
+            started_issues: Set of issues that have been started
 
         Returns:
-            Estimated workdays for this simulation run
+            List of issue keys that can be started now
         """
-        # Add stochastic variability to developer count
-        effective_developers = developers * random.gauss(1.0, variance)
-        effective_developers = max(0.5, effective_developers)  # Floor at 0.5
+        available = []
+        for issue_key in issue_state.keys():
+            if issue_key in started_issues:
+                continue
+            issue = self.issues[issue_key]
+            # Check if all blockers are complete
+            all_deps_done = all(
+                issue_state.get(blocker_key, {}).get("is_complete", False)
+                for blocker_key in issue.blocked_by
+            )
+            if all_deps_done:
+                available.append(issue_key)
+        return available
 
-        # Calculate team efficiency with coordination overhead
-        efficiency = self._compute_team_efficiency(effective_developers, coordination_factor)
+    def _topological_sort_issues(self) -> List[str]:
+        """
+        Get topological sort of issues for assignment priority.
 
-        # Work days if work was perfectly parallelizable (total / developers)
-        parallel_days = (
-            total_points / effective_developers if effective_developers > 0 else float("inf")
-        )
+        Returns:
+            List of issue keys in dependency order
+        """
+        G = build_dependency_graph(self.issues, include_completed=False)
+        try:
+            return list(nx.topological_sort(G))
+        except nx.NetworkXError:
+            return list(self.issues.keys())
 
-        # Work days constrained by critical path (can't parallelize sequential work)
-        sequential_days = critical_path_points
+    def _simulate_workdays_for_run(
+        self,
+        developers: float,
+        points_per_sprint_per_dev: float,
+        variance: float = 0.10,
+    ) -> Dict[str, Any]:
+        """
+        Run one discrete event simulation iteration.
 
-        # Actual work days is the maximum of these two constraints
-        workdays = max(parallel_days, sequential_days)
+        Steps:
+        1. Apply variance factor to each work item's story points
+        2. Initialize engineers with daily capacity
+        3. Iterate workday-by-workday, assigning and completing work
+        4. Track epic and overall project completion days
 
-        # Apply team efficiency degradation (coordination overhead reduces capacity)
-        workdays = workdays / efficiency
+        Args:
+            developers: Number of developers
+            points_per_sprint_per_dev: Story points per sprint per developer
+            variance: Standard deviation of work item variance (default: 0.10 = ±10%)
 
-        return workdays
+        Returns:
+            Dict with:
+            - completion_day: int workdays to complete entire project
+            - epic_completion_days: dict[epic_key -> int workday or None]
+        """
+        # Step 1: Apply variance to all work items
+        issue_state = {}
+        for issue_key, issue in self.issues.items():
+            if issue.is_complete:
+                issue_state[issue_key] = {
+                    "adjusted_points": 0.0,
+                    "remaining_work": 0.0,
+                    "completed_day": 0,
+                    "epic_key": issue.epic_key,
+                    "is_complete": True,
+                }
+            else:
+                variance_factor = random.gauss(1.0, variance)
+                variance_factor = max(0.1, variance_factor)  # Floor at 0.1
+                adjusted_points = issue.story_points * variance_factor
+                issue_state[issue_key] = {
+                    "adjusted_points": adjusted_points,
+                    "remaining_work": adjusted_points,
+                    "completed_day": None,
+                    "epic_key": issue.epic_key,
+                    "is_complete": False,
+                }
+
+        # Step 2: Initialize engineers
+        capacity_per_day = points_per_sprint_per_dev / 5.0
+        engineers = [
+            {"current_issue": None, "remaining_capacity": capacity_per_day}
+            for _ in range(int(math.ceil(developers)))
+        ]
+
+        # Step 3: Get topological sort for assignment priority
+        topo_order = self._topological_sort_issues()
+
+        # Step 4: Workday loop
+        workday = 0
+        max_workdays = 365 * 2  # Safety limit
+        started_issues: Set[str] = set()
+
+        epic_completion_days: Dict[str, Optional[int]] = {epic: None for epic in self.epic_keys}
+
+        while workday < max_workdays:
+            workday += 1
+
+            # Assign work to idle engineers
+            for engineer in engineers:
+                if (
+                    engineer["current_issue"] is None
+                    or engineer["remaining_capacity"] >= capacity_per_day
+                ):
+                    # Engineer is ready for new work
+                    available = self._get_available_issues(issue_state, started_issues)
+
+                    if available:
+                        # Pick next issue from topo order
+                        next_issue = None
+                        for issue_key in topo_order:
+                            if issue_key in available and issue_key not in started_issues:
+                                next_issue = issue_key
+                                break
+
+                        if next_issue:
+                            engineer["current_issue"] = next_issue
+                            engineer["remaining_capacity"] = capacity_per_day
+                            started_issues.add(next_issue)
+
+            # Do work: reduce remaining_work by engineer capacity
+            for engineer in engineers:
+                if engineer["current_issue"]:
+                    issue_key = engineer["current_issue"]
+                    work_done = min(
+                        engineer["remaining_capacity"],
+                        issue_state[issue_key]["remaining_work"],
+                    )
+                    issue_state[issue_key]["remaining_work"] -= work_done
+                    engineer["remaining_capacity"] -= work_done
+
+                    # Check if issue is complete
+                    if issue_state[issue_key]["remaining_work"] <= 0.001:
+                        issue_state[issue_key]["is_complete"] = True
+                        issue_state[issue_key]["completed_day"] = workday
+                        engineer["current_issue"] = None
+                        engineer["remaining_capacity"] = capacity_per_day
+
+            # Check for epic completion
+            for epic_key in self.epic_keys:
+                if epic_completion_days[epic_key] is None:
+                    epic_issues = self.get_epic_issues(epic_key)
+                    if epic_issues:
+                        # Check if all non-completed issues in this epic are done
+                        all_epic_done = all(
+                            issue_state[key].get("is_complete", False)
+                            for key in epic_issues.keys()
+                            if not self.issues[key].is_complete
+                        )
+                        if all_epic_done and any(
+                            not self.issues[key].is_complete for key in epic_issues.keys()
+                        ):
+                            epic_completion_days[epic_key] = workday
+
+            # Check for overall completion
+            if all(state["is_complete"] for state in issue_state.values()):
+                break
+
+        return {
+            "completion_day": workday,
+            "epic_completion_days": epic_completion_days,
+        }
 
     def estimate_timeline(
         self,
-        epic_key: str,
-        developers: float,
-        points_per_sprint_per_dev: float,
-        sprint_weeks: int,
+        epic_keys: Union[List[str], str, None] = None,
+        developers: Optional[float] = None,
+        points_per_sprint_per_dev: Optional[float] = None,
+        sprint_weeks: Optional[int] = None,
         coordination_factor: float = 0.15,
         simulations: int = 10000,
         variance: float = 0.10,
     ) -> Dict:
         """
-        Estimate timeline using Monte Carlo simulation with Brooks's Law efficiency.
+        Estimate timeline using discrete event Monte Carlo simulation.
 
         Args:
-            epic_key: The epic key being analyzed
+            epic_keys: List of epic keys being analyzed (for backward compatibility, also accepts single epic_key)
             developers: Number of full-time equivalent developers
             points_per_sprint_per_dev: Story points each developer completes per sprint
             sprint_weeks: Length of sprint in weeks
-            coordination_factor: Brooks's Law coordination overhead (default: 0.15)
+            coordination_factor: Brooks's Law coordination overhead (default: 0.15, unused in new simulator but kept for compatibility)
             simulations: Number of Monte Carlo iterations (default: 10000)
-            variance: Standard deviation of developer capacity variance (default: 0.10 = ±10%)
+            variance: Standard deviation of work item variance (default: 0.10 = ±10%)
 
         Returns:
             Dict with estimates including p50/p85/p95 percentiles and calendar dates
         """
+        # Handle backward compatibility - if epic_keys is a string, convert to list
+        if isinstance(epic_keys, str):
+            epic_keys = [epic_keys]
+        assert epic_keys is not None, "epic_keys must be provided"
+        assert developers is not None, "developers must be provided"
+        assert points_per_sprint_per_dev is not None, "points_per_sprint_per_dev must be provided"
+        assert sprint_weeks is not None, "sprint_weeks must be provided"
         print("\nEstimating timeline...")
 
         # Calculate totals
@@ -224,20 +356,28 @@ class EpicAnalyzer:
         )
         estimated_sprints_raw = max(min_sprints_parallel, min_sprints_sequential)
 
-        # Monte Carlo simulation for workday-based estimation
+        # Initialize tracking for simulations
         workday_results: List[float] = []
+        epic_workday_results: Dict[str, List[float]] = {epic: [] for epic in epic_keys}
+
+        print(f"\nRunning {simulations:,} discrete event Monte Carlo simulations...")
         for _ in range(simulations):
-            workdays = self._simulate_workdays_for_run(
-                critical_path_points,
-                total_points,
-                developers,
-                coordination_factor,
+            result = self._simulate_workdays_for_run(
+                developers=developers,
+                points_per_sprint_per_dev=points_per_sprint_per_dev,
                 variance=variance,
             )
-            workday_results.append(workdays)
+            workday_results.append(result["completion_day"])
+
+            for epic_key in epic_keys:
+                completion_day = result["epic_completion_days"].get(epic_key)
+                if completion_day is not None:
+                    epic_workday_results[epic_key].append(completion_day)
 
         # Sort results for percentile calculation
         workday_results.sort()
+        for epic in epic_workday_results:
+            epic_workday_results[epic].sort()
 
         # Calculate percentiles
         p50_idx = int(len(workday_results) * 0.50)
@@ -265,7 +405,7 @@ class EpicAnalyzer:
         min_workdays_critical = critical_path_points
 
         return {
-            "epic_key": epic_key,
+            "epic_key": epic_keys[0],
             "developers": developers,
             "points_per_sprint_per_dev": points_per_sprint_per_dev,
             "sprint_weeks": sprint_weeks,
@@ -437,7 +577,7 @@ def main():
 
         # Calculate timeline
         timeline = analyzer.estimate_timeline(
-            epic_key=args.epic_keys[0],
+            epic_keys=args.epic_keys,
             developers=args.developers,
             points_per_sprint_per_dev=args.points_per_sprint,
             sprint_weeks=args.sprint_weeks,
