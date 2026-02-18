@@ -170,20 +170,26 @@ class EpicAnalyzer:
         self,
         developers: float,
         points_per_sprint_per_dev: float,
+        coordination_factor: float = 0.15,
         variance: float = 0.10,
     ) -> Dict[str, Any]:
         """
-        Run one discrete event simulation iteration.
+        Run one Monte Carlo simulation iteration with Brooks's Law efficiency applied.
+
+        The efficiency factor reduces individual engineer capacity based on team size coordination overhead:
+        efficiency = 1 / (1 + coordination_factor * log2(team_size))
 
         Steps:
         1. Apply variance factor to each work item's story points
-        2. Initialize engineers with daily capacity
-        3. Iterate workday-by-workday, assigning and completing work
-        4. Track epic and overall project completion days
+        2. Calculate team efficiency and effective capacity per engineer
+        3. Initialize engineers with effective daily capacity
+        4. Iterate workday-by-workday, assigning and completing work
+        5. Track epic and overall project completion days
 
         Args:
             developers: Number of developers
             points_per_sprint_per_dev: Story points per sprint per developer
+            coordination_factor: Brooks's Law coordination overhead factor (default: 0.15)
             variance: Standard deviation of work item variance (default: 0.10 = ±10%)
 
         Returns:
@@ -214,10 +220,14 @@ class EpicAnalyzer:
                     "is_complete": False,
                 }
 
+        # Step 2b: Apply Brooks's Law efficiency degradation
+        efficiency = self._compute_team_efficiency(developers, coordination_factor)
+
         # Step 2: Initialize engineers
         capacity_per_day = points_per_sprint_per_dev / 5.0
+        effective_capacity_per_day = capacity_per_day * efficiency
         engineers = [
-            {"current_issue": None, "remaining_capacity": capacity_per_day}
+            {"current_issue": None, "remaining_capacity": effective_capacity_per_day}
             for _ in range(int(math.ceil(developers)))
         ]
 
@@ -238,7 +248,7 @@ class EpicAnalyzer:
             for engineer in engineers:
                 if (
                     engineer["current_issue"] is None
-                    or engineer["remaining_capacity"] >= capacity_per_day
+                    or engineer["remaining_capacity"] >= effective_capacity_per_day
                 ):
                     # Engineer is ready for new work
                     available = self._get_available_issues(issue_state, started_issues)
@@ -253,7 +263,7 @@ class EpicAnalyzer:
 
                         if next_issue:
                             engineer["current_issue"] = next_issue
-                            engineer["remaining_capacity"] = capacity_per_day
+                            engineer["remaining_capacity"] = effective_capacity_per_day
                             started_issues.add(next_issue)
 
             # Do work: reduce remaining_work by engineer capacity
@@ -272,7 +282,7 @@ class EpicAnalyzer:
                         issue_state[issue_key]["is_complete"] = True
                         issue_state[issue_key]["completed_day"] = workday
                         engineer["current_issue"] = None
-                        engineer["remaining_capacity"] = capacity_per_day
+                        engineer["remaining_capacity"] = effective_capacity_per_day
 
             # Check for epic completion
             for epic_key in self.epic_keys:
@@ -365,6 +375,7 @@ class EpicAnalyzer:
             result = self._simulate_workdays_for_run(
                 developers=developers,
                 points_per_sprint_per_dev=points_per_sprint_per_dev,
+                coordination_factor=coordination_factor,
                 variance=variance,
             )
             workday_results.append(result["completion_day"])
