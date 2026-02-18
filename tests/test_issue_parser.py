@@ -172,3 +172,51 @@ def test_handle_cycles_no_cycles():
     assert nx.is_directed_acyclic_graph(G_result)
     assert G_result.number_of_nodes() == 2
     assert G_result.number_of_edges() == 1
+
+
+def test_issue_with_epic_key():
+    """Test Issue object with epic_key."""
+    issue = Issue(
+        key="TEST-1",
+        summary="Test issue",
+        status="In Progress",
+        story_points=5.0,
+        epic_key="EPIC-1",
+    )
+    assert issue.key == "TEST-1"
+    assert issue.epic_key == "EPIC-1"
+    assert "epic=EPIC-1" in repr(issue)
+
+
+def test_issue_without_epic_key():
+    """Test Issue object without epic_key defaults to None."""
+    issue = Issue(key="TEST-1", summary="Test issue", status="In Progress", story_points=5.0)
+    assert issue.epic_key is None
+    assert "epic=" not in repr(issue)
+
+
+def test_parse_jira_issues_with_epic_key():
+    """Test parsing Jira issues with epic_key."""
+    raw_issues = [
+        {
+            "key": "TEST-1",
+            "fields": {
+                "summary": "First task",
+                "status": {"name": "To Do"},
+                "customfield_10115": 5,
+            },
+        },
+        {
+            "key": "TEST-2",
+            "fields": {
+                "summary": "Second task",
+                "status": {"name": "To Do"},
+                "customfield_10115": 3,
+            },
+        },
+    ]
+
+    issues = parse_jira_issues(raw_issues, epic_key="EPIC-1")
+
+    assert issues["TEST-1"].epic_key == "EPIC-1"
+    assert issues["TEST-2"].epic_key == "EPIC-1"

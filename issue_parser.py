@@ -11,11 +11,14 @@ import networkx as nx
 class Issue:
     """Represents a Jira issue with dependencies"""
 
-    def __init__(self, key: str, summary: str, status: str, story_points: float = 0):
+    def __init__(
+        self, key: str, summary: str, status: str, story_points: float = 0, epic_key: str = None
+    ):
         self.key = key
         self.summary = summary
         self.status = status
         self.story_points = story_points
+        self.epic_key = epic_key  # Track which epic this issue belongs to
         self.blocks: Set[str] = set()  # Issues this blocks
         self.blocked_by: Set[str] = set()  # Issues blocking this
         self.critical_path_length = 0
@@ -23,11 +26,12 @@ class Issue:
         self.is_complete = status.lower() in ["done", "closed", "duplicate", "won't fix"]
 
     def __repr__(self):
-        return f"Issue({self.key}, {self.story_points}pts, status={self.status})"
+        epic_info = f", epic={self.epic_key}" if self.epic_key else ""
+        return f"Issue({self.key}, {self.story_points}pts, status={self.status}{epic_info})"
 
 
 def parse_jira_issues(
-    raw_issues: List[Dict], story_points_field: str = "customfield_10115"
+    raw_issues: List[Dict], story_points_field: str = "customfield_10115", epic_key: str = None
 ) -> Dict[str, Issue]:
     """
     Parse raw Jira issues into Issue objects with dependencies
@@ -61,7 +65,13 @@ def parse_jira_issues(
         status_obj = fields.get("status")
         status = status_obj["name"] if status_obj and "name" in status_obj else "Unknown"
 
-        issue = Issue(key=key, summary=summary, status=status, story_points=float(story_points))
+        issue = Issue(
+            key=key,
+            summary=summary,
+            status=status,
+            story_points=float(story_points),
+            epic_key=epic_key,
+        )
 
         issues[key] = issue
 
