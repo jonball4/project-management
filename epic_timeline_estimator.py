@@ -96,7 +96,7 @@ class EpicAnalyzer:
 
         print(f"\nTotal issues across all epics: {len(self.issues)}")
 
-    def get_epic_issues(self, epic_key: str) -> Dict[str, object]:
+    def get_epic_issues(self, epic_key: str) -> Dict:
         """Get all issues for a specific epic"""
         return self.issues_by_epic.get(epic_key, {})
 
@@ -246,11 +246,9 @@ class EpicAnalyzer:
 
             # Assign work to idle engineers
             for engineer in engineers:
-                if (
-                    engineer["current_issue"] is None
-                    or engineer["remaining_capacity"] >= effective_capacity_per_day
-                ):
-                    # Engineer is ready for new work
+                # Engineer is ready for new work only if they have no current assignment
+                if engineer["current_issue"] is None:
+                    # Engineer is idle - assign them new work
                     available = self._get_available_issues(issue_state, started_issues)
 
                     if available:
@@ -415,8 +413,52 @@ class EpicAnalyzer:
         # Minimum workdays (critical path only, ignores other parallelizable work)
         min_workdays_critical = critical_path_points
 
+        # Compute per-epic summaries for multi-epic analysis
+        epic_summaries = {}
+        for epic_key in epic_keys:
+            epic_issues = self.get_epic_issues(epic_key)
+            if epic_issues:
+                epic_points = sum(i.story_points for i in epic_issues.values() if not i.is_complete)
+
+                # Get p50/p85/p95 for this epic from the simulation results
+                epic_p50_workdays = (
+                    epic_workday_results[epic_key][int(len(epic_workday_results[epic_key]) * 0.50)]
+                    if epic_workday_results[epic_key]
+                    else 0
+                )
+                epic_p85_workdays = (
+                    epic_workday_results[epic_key][int(len(epic_workday_results[epic_key]) * 0.85)]
+                    if epic_workday_results[epic_key]
+                    else 0
+                )
+                epic_p95_workdays = (
+                    epic_workday_results[epic_key][int(len(epic_workday_results[epic_key]) * 0.95)]
+                    if epic_workday_results[epic_key]
+                    else 0
+                )
+
+                epic_p50_weeks = epic_p50_workdays / 5
+                epic_p85_weeks = epic_p85_workdays / 5
+                epic_p95_weeks = epic_p95_workdays / 5
+
+                epic_p50_end_date = now + timedelta(weeks=epic_p50_weeks)
+                epic_p85_end_date = now + timedelta(weeks=epic_p85_weeks)
+                epic_p95_end_date = now + timedelta(weeks=epic_p95_weeks)
+
+                epic_summaries[epic_key] = {
+                    "total_points": epic_points,
+                    "p50_weeks": round(epic_p50_weeks, 1),
+                    "p85_weeks": round(epic_p85_weeks, 1),
+                    "p95_weeks": round(epic_p95_weeks, 1),
+                    "p50_end_date": epic_p50_end_date.strftime("%Y-%m-%d"),
+                    "p85_end_date": epic_p85_end_date.strftime("%Y-%m-%d"),
+                    "p95_end_date": epic_p95_end_date.strftime("%Y-%m-%d"),
+                }
+
         return {
             "epic_key": epic_keys[0],
+            "epics": epic_keys,
+            "epic_summaries": epic_summaries,
             "developers": developers,
             "points_per_sprint_per_dev": points_per_sprint_per_dev,
             "sprint_weeks": sprint_weeks,
@@ -453,14 +495,42 @@ class EpicAnalyzer:
             "now": now.strftime("%Y-%m-%d"),
         }
 
+    def _print_epic_summary(self, epic_key: str, epic_summary: Dict) -> None:
+        """Print summary for a single epic"""
+        print(f"\n📌 Epic: {epic_key}")
+        print(f"  Total Points: {epic_summary['total_points']:.1f}")
+        print(
+            f"  p50 (50% confidence): {epic_summary['p50_weeks']:.1f} weeks → {epic_summary['p50_end_date']} ({int(epic_summary['p50_weeks'] * 7)} days)"
+        )
+        print(
+            f"  p85 (85% confidence): {epic_summary['p85_weeks']:.1f} weeks → {epic_summary['p85_end_date']} ({int(epic_summary['p85_weeks'] * 7)} days)"
+        )
+        print(
+            f"  p95 (95% confidence): {epic_summary['p95_weeks']:.1f} weeks → {epic_summary['p95_end_date']} ({int(epic_summary['p95_weeks'] * 7)} days)"
+        )
+
     def print_summary(self, timeline: Dict) -> None:
         """Print a detailed summary of the analysis"""
+        is_multi_epic = len(timeline.get("epics", [])) > 1
+
+        title = (
+            "MULTI-EPIC TIMELINE ESTIMATION SUMMARY"
+            if is_multi_epic
+            else "EPIC TIMELINE ESTIMATION SUMMARY"
+        )
+        title += " (Monte Carlo)"
+
         print("\n" + "=" * 90)
-        print("EPIC TIMELINE ESTIMATION SUMMARY (Monte Carlo)")
+        print(title)
         print("=" * 90)
 
         print("\n⚙️  Configuration:")
-        print(f"  Epic: {timeline['epic_key']}")
+        epics_display = (
+            ", ".join(timeline["epics"])
+            if timeline.get("epics")
+            else timeline.get("epic_key", "Unknown")
+        )
+        print(f"  Epics: {epics_display}")
         print(f"  Team Size: {timeline['developers']:.2f} FTE developers")
         print(f"  Velocity: {timeline['points_per_sprint_per_dev']:.1f} points/sprint/developer")
         print(f"  Sprint Length: {timeline['sprint_weeks']} weeks")
@@ -481,24 +551,17 @@ class EpicAnalyzer:
         print("\n📈 Story Points:")
         print(f"  Total Remaining: {timeline['total_points']:.1f} points")
         print(f"  Completed: {timeline['completed_points']:.1f} points")
-        print(f"  Critical Path: {timeline['critical_path_points']:.1f} points")
 
-        print("\n⏱️  Sprint-Based Estimates (Deterministic):")
-        print(
-            f"  Minimum (perfect parallelization): {timeline['min_sprints_parallel']:.2f} sprints"
-        )
-        print(
-            f"  Minimum (critical path constraint): {timeline['min_sprints_sequential']:.2f} sprints"
-        )
-        print(f"  Estimated (raw): {timeline['estimated_sprints_raw']:.2f} sprints")
-
-        print("\n🎲 Monte Carlo Workday Estimates (1 point = 1 day):")
-        print(f"  Minimum (critical path only): {timeline['min_workdays_critical']:.1f} days")
+        print("\n🎲 Monte Carlo Workday Estimates (1 point ≈ 1 day):")
         print(f"  p50 (50th percentile): {timeline['p50_workdays']:.1f} days")
         print(f"  p85 (85th percentile): {timeline['p85_workdays']:.1f} days")
         print(f"  p95 (95th percentile): {timeline['p95_workdays']:.1f} days")
 
-        print("\n📅 Projected Completion Dates (from today: {})".format(timeline["now"]))
+        print(
+            "\n📅 Overall Project Projected Completion Dates (from today: {})".format(
+                timeline["now"]
+            )
+        )
         print(
             f"  p50 (50% confidence): {timeline['p50_weeks']:.1f} weeks → {timeline['p50_end_date']} ({timeline['p50_days']} days)"
         )
@@ -509,10 +572,19 @@ class EpicAnalyzer:
             f"  p95 (95% confidence): {timeline['p95_weeks']:.1f} weeks → {timeline['p95_end_date']} ({timeline['p95_days']} days)"
         )
 
+        # Print per-epic summaries if multi-epic
+        if timeline.get("epic_summaries"):
+            print("\n" + "-" * 90)
+            print("📌 Per-Epic Completion Dates:")
+            print("-" * 90)
+            for epic_key, epic_summary in timeline["epic_summaries"].items():
+                self._print_epic_summary(epic_key, epic_summary)
+
         print(f"\n🔴 Critical Path ({len(timeline['critical_path_issues'])} issues):")
         for i, key in enumerate(timeline["critical_path_issues"], 1):
             issue = self.issues[key]
-            print(f"  {i}. {key}: {issue.summary} ({issue.story_points} pts)")
+            epic_info = f" [{issue.epic_key}]" if issue.epic_key else ""
+            print(f"  {i}. {key}: {issue.summary} ({issue.story_points} pts){epic_info}")
 
         print("\n" + "=" * 90)
 
